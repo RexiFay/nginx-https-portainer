@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run this on a cron to auto-renew the Let's Encrypt cert.
-# Recommended: add to crontab as  0 3 * * * bash /path/to/renew-certs.sh
+# Renew Let's Encrypt cert using standalone mode.
+# Cron: 0 3 * * * bash /path/to/renew-certs.sh
 
 cd "$(dirname "$0")/.."
-docker compose run --rm certbot renew
+docker compose run --rm -p 8088:80 certbot renew --standalone
 docker compose exec nginx nginx -s reload
-echo "Cert renewal attempted and nginx reloaded."
+echo "Cert renewed and nginx reloaded."
