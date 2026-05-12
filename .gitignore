@@ -1,0 +1,4 @@
+# Never commit TLS private keys or certificates
+nginx/ssl/*.pem
+nginx/ssl/*.crt
+nginx/ssl/*.key
