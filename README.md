@@ -1,47 +1,68 @@
 # nginx-https-portainer
 
-Nginx serving HTTPS on **port 6532**, packaged as a Docker Compose stack ready for [Portainer](https://portainer.io).
+Nginx serving HTTPS on **port 6532** with a real **Let's Encrypt certificate** for `netdes.xyz`, deployable as a Portainer stack.
 
 ---
 
-## Quick start
+## Prerequisites
 
-### 1. Generate a self-signed TLS cert (first time only)
+- Port **80** must be open and reachable from the internet (required for the ACME HTTP-01 challenge).
+- Port **6532** must be open for HTTPS traffic.
+- Your domain `netdes.xyz` must have an **A record pointing to your server's public IP**.
 
-```bash
-bash scripts/gen-self-signed.sh <your-server-IP-or-domain>
+---
+
+## Deploy via Portainer
+
+### Option A — Git repository (recommended)
+
+1. Portainer → **Stacks → Add stack → Repository**
+2. URL: `https://github.com/RexiFay/nginx-https-portainer`
+3. Compose path: `docker-compose.yml`
+4. Click **Deploy the stack**
+
+On first deploy, Certbot will run, obtain the cert for `netdes.xyz` and `www.netdes.xyz`, then Nginx will start with HTTPS.
+
+### Option B — Manual / Web editor
+
+Copy-paste `docker-compose.yml` into the Portainer web editor and deploy.
+
+---
+
+## First-time flow
+
+```
+1. Certbot container starts → requests cert via HTTP-01 on port 80
+2. Nginx verifies the challenge file at /.well-known/acme-challenge/
+3. Let's Encrypt issues cert → stored in the certbot-certs volume
+4. Nginx starts on port 6532 using /etc/letsencrypt/live/netdes.xyz/fullchain.pem
 ```
 
-This writes `nginx/ssl/cert.pem` and `nginx/ssl/key.pem`. Those files are in `.gitignore` and will **never** be committed.
-
-> **Production tip:** Replace the self-signed cert with a real one from Let's Encrypt (Certbot/acme.sh) and mount it at the same paths.
-
 ---
 
-### 2. Deploy via Portainer
-
-#### Option A — Git repository (recommended)
-
-1. Open **Portainer → Stacks → Add stack → Repository**
-2. Paste the repo URL: `https://github.com/RexiFay/nginx-https-portainer`
-3. Set **Compose path** to `docker-compose.yml`
-4. Make sure `nginx/ssl/cert.pem` and `nginx/ssl/key.pem` exist on the host before deploying (step 1 above).
-5. Click **Deploy the stack**.
-
-#### Option B — Upload / Web editor
-
-Copy-paste the contents of `docker-compose.yml` directly into the Portainer web editor.
-
----
-
-### 3. Verify
+## Verify
 
 ```bash
-curl -k https://localhost:6532/health
-# expected output:  ok
+curl https://netdes.xyz:6532/health
+# → ok
 ```
 
-Or open `https://<your-server>:6532` in a browser (accept the self-signed cert warning).
+---
+
+## Auto-renew certs
+
+Add a cron job on your server:
+
+```bash
+crontab -e
+# Add this line:
+0 3 * * * bash /path/to/nginx-https-portainer/scripts/renew-certs.sh
+```
+
+Or run manually:
+```bash
+bash scripts/renew-certs.sh
+```
 
 ---
 
@@ -49,41 +70,22 @@ Or open `https://<your-server>:6532` in a browser (accept the self-signed cert w
 
 ```
 .
-├── docker-compose.yml          # Stack definition
+├── docker-compose.yml          # Nginx + Certbot stack
 ├── nginx/
 │   ├── conf.d/
-│   │   └── default.conf        # Nginx HTTPS server block
-│   ├── html/
-│   │   └── index.html          # Default welcome page
-│   └── ssl/                    # ← place cert.pem and key.pem here (gitignored)
+│   │   └── default.conf        # HTTP redirect + HTTPS on 6532
+│   └── html/
+│       └── index.html          # Default welcome page
 ├── scripts/
-│   └── gen-self-signed.sh      # Helper: generate a self-signed cert
+│   └── renew-certs.sh          # Cert renewal helper
 └── .gitignore
 ```
 
 ---
 
-## Swapping in a real cert
-
-Mount any PEM-format cert chain and key at:
-
-| Container path | What to put there |
-|---|---|
-| `/etc/nginx/ssl/cert.pem` | Full-chain certificate |
-| `/etc/nginx/ssl/key.pem` | Private key |
-
-No changes to `docker-compose.yml` or `default.conf` are needed.
-
----
-
 ## Changing the port
 
-Edit the `ports` entry in `docker-compose.yml`:
-
-```yaml
-ports:
-  - "NEW_PORT:443"
-```
+Edit `docker-compose.yml` ports and `default.conf` `listen` line to match.
 
 ---
 
